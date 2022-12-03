@@ -38,8 +38,14 @@ export type FlatPackage = {
 
 export type ValueEncoder = (value: any, valueType: string) -> (any, string?)
 
+export type ValueDecoder = (value: Property) -> any
+
 export type PackageConfig = {
 	valueEncoder: ValueEncoder,
+}
+
+export type BuilderConfig = {
+	valueDecoder: ValueDecoder,
 }
 
 return {}

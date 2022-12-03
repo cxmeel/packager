@@ -36,8 +36,21 @@ function Packager.DEFAULT_VALUE_ENCODER(value: any, valueType: string)
 	return value, valueType
 end
 
+function Packager.DEFAULT_VALUE_DECODER(value: T.Property): any
+	if value.Type == "Enum" then
+		local enumInfo = value.Value
+		return Enum[enumInfo.Type][enumInfo.Value]
+	end
+
+	return value.Value
+end
+
 local DEFAULT_PACKAGER_CONFIG: T.PackageConfig = {
 	valueEncoder = Packager.DEFAULT_VALUE_ENCODER,
+}
+
+local DEFAULT_BUILDER_CONFIG: T.BuilderConfig = {
+	valueDecoder = Packager.DEFAULT_VALUE_DECODER,
 }
 
 local function createRef(_: Instance): string
@@ -113,7 +126,7 @@ function Packager:createFlatTreeNode(
 		local propertyValue =
 			encodeValue((instance :: any)[property], propertyValueType, config.valueEncoder)
 
-		if propertyValue.Type == "Instance" then
+		if propertyValueType == "Instance" then
 			local linkedRef = refs[propertyValue.Value :: Instance]
 
 			if linkedRef == nil then
@@ -198,7 +211,7 @@ function Packager:ConvertToPackageFlat(package: T.Package): T.FlatPackage
 	local refs = package.Refs
 	local tree = {}
 
-	local function populateTree(node: T.TreeNode)
+	local function populateTree(node: T.TreeNode, parentNode: T.TreeNode?)
 		local flatNode: T.FlatTreeNode = {
 			Name = node.Name,
 			ClassName = node.ClassName,
@@ -210,16 +223,23 @@ function Packager:ConvertToPackageFlat(package: T.Package): T.FlatPackage
 
 		tree[flatNode.Ref] = flatNode
 
+		if parentNode then
+			flatNode.Properties.Parent = {
+				Type = REF_KEY,
+				Value = parentNode.Ref,
+			}
+		end
+
 		if not node.Children then
 			return
 		end
 
 		for _, child in node.Children do
-			populateTree(child)
+			populateTree(child, node)
 		end
 	end
 
-	populateTree(package.Tree)
+	populateTree(package.Tree, nil)
 
 	return {
 		Refs = refs,
@@ -231,6 +251,60 @@ end
 function Packager:CreatePackage(rootInstance: Instance, config: T.PackageConfig?): T.Package
 	local flatPackage = self:CreatePackageFlat(rootInstance, config)
 	return self:ConvertToPackage(flatPackage)
+end
+
+function Packager:BuildFromPackage(
+	package: T.Package | T.FlatPackage,
+	config: T.BuilderConfig?
+): Instance
+	local options: T.BuilderConfig = Dictionary.merge(DEFAULT_BUILDER_CONFIG, config)
+	local isFlatPackage = package.RootRef ~= nil
+
+	local flatPackage = isFlatPackage and package or self:ConvertToPackageFlat(package)
+
+	local instances = {}
+
+	for ref, node in flatPackage.Tree do
+		local instance = Instance.new(node.ClassName)
+		instance.Name = node.Name
+
+		instances[ref] = instance
+	end
+
+	for ref, node in flatPackage.Tree do
+		local instance = instances[ref]
+
+		for propertyName, property in node.Properties do
+			if property.Type == REF_KEY then
+				local linkedInstance = instances[property.Value]
+
+				if linkedInstance == nil then
+					continue
+				end
+
+				instance[propertyName] = linkedInstance
+				continue
+			end
+
+			local decodedValue = options.valueDecoder(property)
+			instance[propertyName] = decodedValue
+		end
+
+		if node.Attributes then
+			for key, value in node.Attributes do
+				local decodedValue = options.valueDecoder(value)
+				instance:SetAttribute(key, decodedValue)
+			end
+		end
+
+		if node.Tags then
+			for _, tag in node.Tags do
+				CollectionService:AddTag(instance, tag)
+			end
+		end
+	end
+
+	return instances[flatPackage.RootRef]
 end
 
 return Packager
