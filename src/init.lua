@@ -1,4 +1,7 @@
 --!strict
+--[=[
+	@class Packager
+]=]
 local CollectionService = game:GetService("CollectionService")
 
 local T = require(script["init.d"])
@@ -10,6 +13,15 @@ local ShortId = require(script.Util.ShortId)
 local Packager = {}
 
 Packager.__index = Packager
+
+--[=[
+	@prop Types {}
+	@within Packager
+
+	A reference to the `Types` module, which contains various
+	types used within the packager.
+]=]
+Packager.Types = T
 
 local REF_KEY = "REF"
 
@@ -23,6 +35,15 @@ local VALUE_TYPE_REMAP = {
 	void = "nil",
 }
 
+--[=[
+	@prop DEFAULT_VALUE_ENCODER ValueEncoder
+	@within Packager
+
+	The default value encoder used by the packager. It
+	encodes values as-is, with the exception of Enums,
+	which are encoded as a table of `Type = EnumType`
+	and `Value = EnumItem.Name`.
+]=]
 function Packager.DEFAULT_VALUE_ENCODER(value: any, valueType: string)
 	valueType = VALUE_TYPE_REMAP[valueType] or valueType
 
@@ -36,6 +57,15 @@ function Packager.DEFAULT_VALUE_ENCODER(value: any, valueType: string)
 	return value, valueType
 end
 
+--[=[
+	@prop DEFAULT_VALUE_DECODER ValueDecoder
+	@within Packager
+
+	The default value decoder used by the packager. It
+	decodes values as-is, with the exception of Enums,
+	which are decoded from a table of `Type = EnumType`
+	and `Value = EnumItem.Name`.
+]=]
 function Packager.DEFAULT_VALUE_DECODER(value: T.Property): any
 	if value.Type == "Enum" then
 		local enumInfo = value.Value
@@ -66,6 +96,16 @@ local function encodeValue(value: any?, valueType: string, valueEncoder: T.Value
 	}
 end
 
+--[=[
+	@function new
+	@within Packager
+	@param dump APIDump | DumpParser
+	@return Packager
+
+	Creates a new packager instance. The packager can be used
+	to package instances into a tree structure, and to build
+	instances from a tree structure.
+]=]
 function Packager.new(dump: T.DumpParser | T.APIDump)
 	local self = setmetatable({}, Packager)
 
@@ -78,11 +118,32 @@ function Packager.new(dump: T.DumpParser | T.APIDump)
 	return self
 end
 
+--[=[
+	@function fetchFromServer
+	@within Packager
+	@param hashOrVersion string
+	@return Packager
+
+	Creates a new packager instance by fetching the API dump
+	from Roblox server. This is a convenience method for
+	`Packager.new(DumpParser.fetchFromServer(hashOrVersion))`.
+]=]
 function Packager.fetchFromServer(hashOrVersion: string?)
 	local dump = DumpParser.fetchFromServer(hashOrVersion)
 	return Packager.new(dump)
 end
 
+--[=[
+	@method createFlatTreeNode
+	@within Packager
+	@private
+	@param instance Instance
+	@param refs { [Instance]: string }
+	@param config PackageConfig
+	@return FlatTreeNode
+
+	Creates a flat tree node from an instance.
+]=]
 function Packager:createFlatTreeNode(
 	instance: Instance,
 	refs: { [Instance]: string },
@@ -143,17 +204,27 @@ function Packager:createFlatTreeNode(
 	return node
 end
 
-function Packager:CreatePackageFlat(instance: Instance, config: T.PackageConfig?): T.FlatPackage
+--[=[
+	@method CreatePackageFlat
+	@within Packager
+	@param rootInstance Instance
+	@param config PackageConfig
+	@return FlatPackage
+
+	Creates a new package with a flat tree structure from a
+	given root Instance.
+]=]
+function Packager:CreatePackageFlat(rootInstance: Instance, config: T.PackageConfig?): T.FlatPackage
 	local options: T.PackageConfig = Dictionary.merge(DEFAULT_PACKAGER_CONFIG, config)
 
-	local descendants = instance:GetDescendants()
-	local refs = { [instance] = createRef(instance) }
+	local descendants = rootInstance:GetDescendants()
+	local refs = { [rootInstance] = createRef(rootInstance) }
 
 	for _, descendant in descendants do
 		refs[descendant] = createRef(descendant)
 	end
 
-	local rootNode = self:createFlatTreeNode(instance, refs, options)
+	local rootNode = self:createFlatTreeNode(rootInstance, refs, options)
 	local tree = { [rootNode.Ref] = rootNode }
 
 	for _, descendant in descendants do
@@ -168,6 +239,15 @@ function Packager:CreatePackageFlat(instance: Instance, config: T.PackageConfig?
 	}
 end
 
+--[=[
+	@method ConvertToPackage
+	@within Packager
+	@param flatPackage FlatPackage
+	@return Package
+
+	Converts a flat package to a package with a normal tree
+	structure (i.e. each node has a `Children` property).
+]=]
 function Packager:ConvertToPackage(flatPackage: T.FlatPackage): T.Package
 	local flatRootNode = flatPackage.Tree[flatPackage.RootRef]
 
@@ -207,6 +287,16 @@ function Packager:ConvertToPackage(flatPackage: T.FlatPackage): T.Package
 	}
 end
 
+--[=[
+	@method ConvertToPackageFlat
+	@within Packager
+	@param package Package
+	@return FlatPackage
+
+	Converts a package with a normal tree structure to a flat
+	structure (i.e. the tree is an array of tree nodes---Parents
+	are determined by reference strings).
+]=]
 function Packager:ConvertToPackageFlat(package: T.Package): T.FlatPackage
 	local refs = package.Refs
 	local tree = {}
@@ -248,15 +338,37 @@ function Packager:ConvertToPackageFlat(package: T.Package): T.FlatPackage
 	}
 end
 
+--[=[
+	@method CreatePackage
+	@within Packager
+	@param rootInstance Instance
+	@param config PackageConfig
+	@return Package
+
+	Creates a new package from a given root Instance. This
+	function is a wrapper around `CreatePackageFlat` and
+	`ConvertToPackage`.
+]=]
 function Packager:CreatePackage(rootInstance: Instance, config: T.PackageConfig?): T.Package
 	local flatPackage = self:CreatePackageFlat(rootInstance, config)
 	return self:ConvertToPackage(flatPackage)
 end
 
-function Packager:BuildFromPackage(
+--[=[
+	@method BuildFromPackage
+	@within Packager
+	@param package Package | FlatPackage
+	@param config BuildConfig
+	@return Instance
+
+	Builds an Instance from a given package. The returned Instance
+	is the root of the built tree, and is not assigned a Parent. You
+	must assign the root to a Parent yourself.
+]=]
+function Packager:BuildFromPackage<T>(
 	package: T.Package | T.FlatPackage,
 	config: T.BuilderConfig?
-): Instance
+): T.RobloxInstance<T>
 	local options: T.BuilderConfig = Dictionary.merge(DEFAULT_BUILDER_CONFIG, config)
 	local isFlatPackage = package.RootRef ~= nil
 

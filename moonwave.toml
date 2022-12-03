@@ -1,0 +1,11 @@
+title = "Packager"
+gitSourceBranch = "main"
+autoSectionPath = "src"
+
+[[classOrder]]
+classes = ["Packager"]
+
+[[classOrder]]
+section = "Internal"
+collapsed = true
+classes = ["Types"]
