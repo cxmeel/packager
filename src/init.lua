@@ -13,14 +13,43 @@ Packager.__index = Packager
 
 local REF_KEY = "REF"
 
+local VALUE_TYPE_REMAP = {
+	bool = "boolean",
+	float = "number",
+	double = "number",
+	int = "number",
+	int64 = "number",
+	string = "string",
+	void = "nil",
+}
+
+function Packager.DEFAULT_VALUE_ENCODER(value: any, valueType: string)
+	valueType = VALUE_TYPE_REMAP[valueType] or valueType
+
+	if valueType == "Enum" then
+		return {
+			Type = tostring(value.EnumType),
+			Value = value.Name,
+		}
+	end
+
+	return value, valueType
+end
+
+local DEFAULT_PACKAGER_CONFIG: T.PackageConfig = {
+	valueEncoder = Packager.DEFAULT_VALUE_ENCODER,
+}
+
 local function createRef(_: Instance): string
 	return ShortId(8)
 end
 
-local function encodeValue(value: any?)
+local function encodeValue(value: any?, valueType: string, valueEncoder: T.ValueEncoder)
+	local encodedValue, encodedValueType = valueEncoder(value, valueType)
+
 	return {
-		Type = typeof(value),
-		Value = value,
+		Type = encodedValueType or valueType,
+		Value = encodedValue,
 	}
 end
 
@@ -43,7 +72,8 @@ end
 
 function Packager:createFlatTreeNode(
 	instance: Instance,
-	refs: { [Instance]: string }
+	refs: { [Instance]: string },
+	config: T.PackageConfig
 ): T.FlatTreeNode
 	local node = {}
 
@@ -66,16 +96,22 @@ function Packager:createFlatTreeNode(
 
 	if next(instanceAttributes) then
 		node.Attributes = Dictionary.map(instanceAttributes, function(value, key)
-			return encodeValue(value), key
+			return encodeValue(value, typeof(value), config.valueEncoder), key
 		end)
 	end
 
-	for property in changedProperties do
+	for property, propertyMeta in changedProperties do
 		if property == "Name" then
 			continue
 		end
 
-		local propertyValue = encodeValue((instance :: any)[property])
+		local propertyValueType = if propertyMeta.ValueType.Category == "Class"
+			then "Instance"
+			elseif propertyMeta.ValueType.Category == "Enum" then "Enum"
+			else propertyMeta.ValueType.Name
+
+		local propertyValue =
+			encodeValue((instance :: any)[property], propertyValueType, config.valueEncoder)
 
 		if propertyValue.Type == "Instance" then
 			local linkedRef = refs[propertyValue.Value :: Instance]
@@ -94,7 +130,9 @@ function Packager:createFlatTreeNode(
 	return node
 end
 
-function Packager:CreatePackageFlat(instance: Instance): T.FlatPackage
+function Packager:CreatePackageFlat(instance: Instance, config: T.PackageConfig?): T.FlatPackage
+	local options: T.PackageConfig = Dictionary.merge(DEFAULT_PACKAGER_CONFIG, config)
+
 	local descendants = instance:GetDescendants()
 	local refs = { [instance] = createRef(instance) }
 
@@ -102,11 +140,11 @@ function Packager:CreatePackageFlat(instance: Instance): T.FlatPackage
 		refs[descendant] = createRef(descendant)
 	end
 
-	local rootNode = self:createFlatTreeNode(instance, refs)
+	local rootNode = self:createFlatTreeNode(instance, refs, options)
 	local tree = { [rootNode.Ref] = rootNode }
 
 	for _, descendant in descendants do
-		local node = self:createFlatTreeNode(descendant, refs)
+		local node = self:createFlatTreeNode(descendant, refs, options)
 		tree[node.Ref] = node
 	end
 
@@ -190,8 +228,8 @@ function Packager:ConvertToPackageFlat(package: T.Package): T.FlatPackage
 	}
 end
 
-function Packager:CreatePackage(rootInstance: Instance): T.Package
-	local flatPackage = self:CreatePackageFlat(rootInstance)
+function Packager:CreatePackage(rootInstance: Instance, config: T.PackageConfig?): T.Package
+	local flatPackage = self:CreatePackageFlat(rootInstance, config)
 	return self:ConvertToPackage(flatPackage)
 end
 

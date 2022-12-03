@@ -36,4 +36,10 @@ export type FlatPackage = {
 	Tree: { [string]: FlatTreeNode },
 }
 
+export type ValueEncoder = (value: any, valueType: string) -> (any, string?)
+
+export type PackageConfig = {
+	valueEncoder: ValueEncoder,
+}
+
 return {}
