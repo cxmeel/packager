@@ -11,6 +11,8 @@ local Packager = {}
 
 Packager.__index = Packager
 
+local REF_KEY = "REF"
+
 local function createRef(_: Instance): string
 	return ShortId(8)
 end
@@ -81,7 +83,7 @@ function Packager:createFlatTreeNode(
 			if linkedRef == nil then
 				propertyValue = nil :: any
 			else
-				propertyValue.Type = "Ref"
+				propertyValue.Type = REF_KEY
 				propertyValue.Value = linkedRef
 			end
 		end
