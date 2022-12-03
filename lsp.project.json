@@ -1,0 +1,9 @@
+{
+  "name": "packager-lsp",
+  "tree": {
+    "$path": "packages",
+    "Packager": {
+      "$path": "src"
+    }
+  }
+}
