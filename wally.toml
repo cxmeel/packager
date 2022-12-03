@@ -3,6 +3,7 @@ name = "csqrl/packager"
 version = "0.1.0"
 registry = "https://github.com/UpliftGames/wally-index"
 realm = "shared"
+description = "https://github.com/csqrl/packager"
 
 [dependencies]
 DumpParser = "csqrl/dump-parser@0.1.1"
