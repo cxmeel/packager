@@ -69,6 +69,10 @@ function Packager:createFlatTreeNode(
 	end
 
 	for property in changedProperties do
+		if property == "Name" then
+			continue
+		end
+
 		local propertyValue = encodeValue((instance :: any)[property])
 
 		if propertyValue.Type == "Instance" then
