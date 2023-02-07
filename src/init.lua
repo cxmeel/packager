@@ -15,13 +15,45 @@ local Packager = {}
 Packager.__index = Packager
 
 --[=[
-	@prop Types {}
+	@prop Types Types
 	@within Packager
 
-	A reference to the `Types` module, which contains various
-	types used within the packager.
+	A reference to the `Types` module.
 ]=]
 Packager.Types = T
+
+--[=[
+	@type Package Package
+	@within Packager
+
+	A reference to the `Package` type.
+]=]
+export type Package = T.Package
+
+--[=[
+	@type FlatPackage FlatPackage
+	@within Packager
+
+	A reference to the `FlatPackage` type.
+]=]
+export type FlatPackage = T.FlatPackage
+
+--[=[
+	@type TreeNode TreeNode
+	@within Packager
+
+	A reference to the `TreeNode` type.
+]=]
+export type TreeNode = T.TreeNode
+
+--[=[
+	@type FlatTreeNode FlatTreeNode
+	@within Packager
+
+	A reference to the `FlatTreeNode` type.
+]=]
+export type FlatTreeNode = T.FlatTreeNode
+
 
 local REF_KEY = "REF"
 
