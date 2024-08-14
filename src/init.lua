@@ -54,6 +54,16 @@ export type TreeNode = T.TreeNode
 ]=]
 export type FlatTreeNode = T.FlatTreeNode
 
+-- Re-export for Luau
+export type APIDump = T.APIDump
+export type DumpParser = T.DumpParser
+export type Property = T.Property
+export type CommonTreeNode = T.CommonTreeNode
+export type ValueEncoder = T.ValueEncoder
+export type ValueDecoder = T.ValueDecoder
+export type PackageConfig = T.PackageConfig
+export type BuilderConfig = T.BuilderConfig
+export type RobloxInstance<T> = T.RobloxInstance<T>
 
 local REF_KEY = "REF"
 
@@ -142,9 +152,9 @@ function Packager.new(dump: T.DumpParser | T.APIDump)
 	local self = setmetatable({}, Packager)
 
 	if typeof(dump.GetClasses) == "function" then
-		self._dump = dump
+		self.Dump = dump
 	elseif typeof(dump) == "table" then
-		self._dump = DumpParser.new(dump)
+		self.Dump = DumpParser.new(dump)
 	end
 
 	return self
@@ -183,9 +193,10 @@ function Packager:createFlatTreeNode(
 ): T.FlatTreeNode
 	local node = {}
 
-	local changedProperties = self._dump:GetChangedProperties(
+	local changedProperties = self.Dump:GetChangedProperties(
 		instance,
-		DumpParser.Filter.Invert(DumpParser.Filter.ReadOnly)
+		DumpParser.Filter.Invert(DumpParser.Filter.ReadOnly),
+		DumpParser.Filter.Invert(DumpParser.Filter.HasTags("Hidden"))
 	)
 
 	node.Ref = refs[instance]
@@ -286,14 +297,7 @@ function Packager:ConvertToPackage(flatPackage: T.FlatPackage): T.Package
 	local function buildTree(rootNode: T.FlatTreeNode)
 		local children = {}
 
-		local newNode: T.TreeNode = {
-			Name = rootNode.Name,
-			ClassName = rootNode.ClassName,
-			Properties = rootNode.Properties,
-			Attributes = rootNode.Attributes,
-			Tags = rootNode.Tags,
-			Ref = rootNode.Ref,
-		}
+		local newNode: T.TreeNode = table.clone(rootNode)
 
 		for _, node in flatPackage.Tree do
 			if node.Properties.Parent == nil then
@@ -334,14 +338,8 @@ function Packager:ConvertToPackageFlat(package: T.Package): T.FlatPackage
 	local tree = {}
 
 	local function populateTree(node: T.TreeNode, parentNode: T.TreeNode?)
-		local flatNode: T.FlatTreeNode = {
-			Name = node.Name,
-			ClassName = node.ClassName,
-			Properties = node.Properties,
-			Attributes = node.Attributes,
-			Tags = node.Tags,
-			Ref = node.Ref,
-		}
+		local flatNode: T.FlatTreeNode = table.clone(node)
+		flatNode.Children = nil
 
 		tree[flatNode.Ref] = flatNode
 
