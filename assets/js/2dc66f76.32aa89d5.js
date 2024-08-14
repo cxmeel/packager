@@ -1,0 +1,1 @@
+"use strict";(self.webpackChunkdocs=self.webpackChunkdocs||[]).push([[575],{63891:e=>{e.exports=JSON.parse('{"sourceUrl":"https://github.com/cxmeel/packager/blob/main","baseUrl":"/packager/","classOrder":[{"classes":["Packager"]},{"section":"Internal","collapsed":true,"classes":["Types"]}],"apiCategories":[]}')}}]);
